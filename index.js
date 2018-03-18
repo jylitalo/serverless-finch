@@ -171,7 +171,15 @@ class Client {
     }
 
     this.bucketName = this.serverless.service.custom.client.bucketName;
+    this.bucketPolicy = true;
     this.clientPath = clientPath;
+    this.website = true;      
+    if (this.serverless.service.custom.client.hasOwnProperty('bucketPolicy')) {
+      this.bucketPolicy = this.serverless.service.custom.client.bucketPolicy;
+    }
+    if (this.serverless.service.custom.client.hasOwnProperty('website')) {
+      this.website = this.serverless.service.custom.client.website;      
+    }
 
     return BbPromise.resolve();
   }
@@ -193,47 +201,63 @@ class Client {
     }
 
     function configureBucket() {
-      this.serverless.cli.log(`Configuring website bucket ${this.bucketName}...`);
+      if (this.website == false) {
+        this.serverless.cli.log(`Deleting website for bucket ${this.bucketName}...`);
 
-      const indexDoc = this.serverless.service.custom.client.indexDocument || 'index.html';
-      const errorDoc = this.serverless.service.custom.client.errorDocument || 'error.html';
+        let params = { Bucket: this.bucketName };
 
-      let params = {
-        Bucket: this.bucketName,
-        WebsiteConfiguration: {
-          IndexDocument: { Suffix: indexDoc },
-          ErrorDocument: { Key: errorDoc }
-        }
-      };
+        return this.aws.request('S3', 'deleteBucketWebsite', params);
+      } else {
+        this.serverless.cli.log(`Configuring website bucket ${this.bucketName}...`);
 
-      return this.aws.request('S3', 'putBucketWebsite', params);
+        const indexDoc = this.serverless.service.custom.client.indexDocument || 'index.html';
+        const errorDoc = this.serverless.service.custom.client.errorDocument || 'error.html';
+
+        let params = {
+          Bucket: this.bucketName,
+          WebsiteConfiguration: {
+            IndexDocument: { Suffix: indexDoc },
+            ErrorDocument: { Key: errorDoc }
+          }
+        };
+
+        return this.aws.request('S3', 'putBucketWebsite', params);
+      }
     }
 
     function configurePolicyForBucket() {
-      this.serverless.cli.log(`Configuring policy for bucket ${this.bucketName}...`);
+      if (this.bucketPolicy == false) {
+        this.serverless.cli.log(`Deleting bucket policy on bucket ${this.bucketName}...`);
+ 
+        let params = { Bucket: this.bucketName };
+ 
+        return this.aws.request('S3', 'deleteBucketPolicy', params);
+      } else {
+        this.serverless.cli.log(`Configuring policy for bucket ${this.bucketName}...`);
 
-      let policy = {
-        Version: '2008-10-17',
-        Id: 'Policy1392681112290',
-        Statement: [
-          {
-            Sid: 'Stmt1392681101677',
-            Effect: 'Allow',
-            Principal: {
-              AWS: '*'
-            },
-            Action: 's3:GetObject',
-            Resource: 'arn:aws:s3:::' + this.bucketName + '/*'
-          }
-        ]
-      };
+        let policy = {
+          Version: '2008-10-17',
+          Id: 'Policy1392681112290',
+          Statement: [
+            {
+              Sid: 'Stmt1392681101677',
+              Effect: 'Allow',
+              Principal: {
+                AWS: '*'
+              },
+              Action: 's3:GetObject',
+              Resource: 'arn:aws:s3:::' + this.bucketName + '/*'
+            }
+          ]
+        };
 
-      let params = {
-        Bucket: this.bucketName,
-        Policy: JSON.stringify(policy)
-      };
+        let params = {
+          Bucket: this.bucketName,
+          Policy: JSON.stringify(policy)
+        };
 
-      return this.aws.request('S3', 'putBucketPolicy', params);
+        return this.aws.request('S3', 'putBucketPolicy', params);
+      }
     }
 
     function configureCorsForBucket() {
